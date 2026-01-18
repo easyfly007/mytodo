@@ -247,6 +247,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   });
   const syncTimerRef = useRef<number | null>(null);
   const skipNextPushRef = useRef(false);
+  const syncInFlightRef = useRef(false);
 
   useEffect(() => {
     const load = async () => {
@@ -351,6 +352,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     if (state.loading) return;
     if (!isSyncConfigured(state.settings)) return;
+    if (syncInFlightRef.current) return;
     if (skipNextPushRef.current) {
       skipNextPushRef.current = false;
       return;
@@ -512,6 +514,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
+    if (syncInFlightRef.current) {
+      return;
+    }
+    syncInFlightRef.current = true;
     setState((prev) => ({ ...prev, syncStatus: "syncing", syncError: null }));
 
     try {
@@ -550,6 +556,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       const message =
         error instanceof Error ? error.message : "同步失败，请稍后重试。";
       setState((prev) => ({ ...prev, syncStatus: "error", syncError: message }));
+    } finally {
+      syncInFlightRef.current = false;
     }
   };
 

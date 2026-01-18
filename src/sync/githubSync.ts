@@ -42,6 +42,7 @@ const githubRequest = async (
     ...init,
     headers: {
       Accept: "application/vnd.github+json",
+      "Content-Type": "application/json",
       Authorization: `Bearer ${settings.githubToken}`,
       ...(init?.headers ?? {}),
     },
@@ -63,25 +64,52 @@ const getGithubFile = async (
   return { content: data.content, sha: data.sha };
 };
 
+const readErrorMessage = async (response: Response): Promise<string> => {
+  try {
+    const data = (await response.json()) as { message?: string };
+    return data.message ?? `HTTP ${response.status}`;
+  } catch {
+    return `HTTP ${response.status}`;
+  }
+};
+
 const putGithubFile = async (
   settings: Settings,
   path: string,
   content: string,
   sha?: string,
 ): Promise<void> => {
-  const response = await githubRequest(settings, path, false, {
-    method: "PUT",
-    body: JSON.stringify({
-      message: `update ${path}`,
-      content: base64Encode(content),
-      branch: settings.githubBranch,
-      sha,
-    }),
-  });
+  let currentSha = sha;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (!currentSha) {
+      const latest = await getGithubFile(settings, path);
+      currentSha = latest.sha;
+    }
 
-  if (!response.ok) {
-    throw new Error(`写入 ${path} 失败：${response.status}`);
+    const response = await githubRequest(settings, path, false, {
+      method: "PUT",
+      body: JSON.stringify({
+        message: `update ${path}`,
+        content: base64Encode(content),
+        branch: settings.githubBranch,
+        sha: currentSha,
+      }),
+    });
+
+    if (response.ok) {
+      return;
+    }
+
+    if (response.status === 409) {
+      currentSha = undefined;
+      continue;
+    }
+
+    const message = await readErrorMessage(response);
+    throw new Error(`写入 ${path} 失败：${message}`);
   }
+
+  throw new Error(`写入 ${path} 失败：多次冲突，请稍后再试`);
 };
 
 export const isSyncConfigured = (settings: Settings): boolean => {
@@ -132,30 +160,19 @@ export const pushToGithub = async (
 ): Promise<void> => {
   if (!isSyncConfigured(settings)) return;
 
-  const [tasksFile, checkinsFile, metaFile] = await Promise.all([
-    getGithubFile(settings, DATA_PATHS.tasks),
-    getGithubFile(settings, DATA_PATHS.checkins),
-    getGithubFile(settings, DATA_PATHS.meta),
-  ]);
-
-  await Promise.all([
-    putGithubFile(
-      settings,
-      DATA_PATHS.tasks,
-      JSON.stringify(data.tasks, null, 2),
-      tasksFile.sha,
-    ),
-    putGithubFile(
-      settings,
-      DATA_PATHS.checkins,
-      JSON.stringify(data.checkins, null, 2),
-      checkinsFile.sha,
-    ),
-    putGithubFile(
-      settings,
-      DATA_PATHS.meta,
-      JSON.stringify({ ...data.meta, lastSyncAt: nowIso() }, null, 2),
-      metaFile.sha,
-    ),
-  ]);
+  await putGithubFile(
+    settings,
+    DATA_PATHS.tasks,
+    JSON.stringify(data.tasks, null, 2),
+  );
+  await putGithubFile(
+    settings,
+    DATA_PATHS.checkins,
+    JSON.stringify(data.checkins, null, 2),
+  );
+  await putGithubFile(
+    settings,
+    DATA_PATHS.meta,
+    JSON.stringify({ ...data.meta, lastSyncAt: nowIso() }, null, 2),
+  );
 };
