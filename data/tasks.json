@@ -1,0 +1,14 @@
+[
+  {
+    "id": "5f6d04e1-9222-4bbc-b946-cabf82dac477",
+    "title": "测试",
+    "type": "normal",
+    "status": "active",
+    "startDate": "2026-01-18",
+    "endDate": null,
+    "timezone": "Asia/Shanghai",
+    "recurrence": null,
+    "createdAt": "2026-01-18T15:11:48.982Z",
+    "updatedAt": "2026-01-18T15:11:48.982Z"
+  }
+]
