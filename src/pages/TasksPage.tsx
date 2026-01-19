@@ -1,27 +1,21 @@
 import { useMemo, useState } from "react";
-import type { TaskType } from "../data/types";
 import { useAppStore } from "../store/appStore";
 import { todayKey } from "../utils/date";
 
 export const TasksPage = () => {
   const { tasks, addTask, archiveTask, toggleTaskStatus, updateTask } = useAppStore();
   const [title, setTitle] = useState("");
-  const [type, setType] = useState<TaskType>("recurring");
-  const [interval, setInterval] = useState(2);
   const [startDate, setStartDate] = useState(todayKey());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
-  const [editInterval, setEditInterval] = useState(2);
   const [editStartDate, setEditStartDate] = useState(todayKey());
 
-  const canSubmit = title.trim().length > 0 && (type !== "recurring" || interval > 0);
+  const canSubmit = title.trim().length > 0;
 
   const onSubmit = () => {
     if (!canSubmit) return;
     addTask({
       title,
-      type,
-      interval: type === "recurring" ? interval : 0,
       startDate,
     });
     setTitle("");
@@ -32,7 +26,6 @@ export const TasksPage = () => {
     if (!task) return;
     setEditingId(taskId);
     setEditTitle(task.title);
-    setEditInterval(task.recurrence?.interval ?? 1);
     setEditStartDate(task.startDate);
   };
 
@@ -47,10 +40,6 @@ export const TasksPage = () => {
       ...task,
       title: editTitle.trim() || task.title,
       startDate: editStartDate,
-      recurrence:
-        task.type === "recurring"
-          ? { rule: "every_n_days", interval: Math.max(1, editInterval) }
-          : null,
     });
     setEditingId(null);
   };
@@ -72,24 +61,6 @@ export const TasksPage = () => {
             placeholder="例如：锻炼身体"
           />
         </div>
-        <div className="form-row">
-          <label>类型</label>
-          <select value={type} onChange={(event) => setType(event.target.value as TaskType)}>
-            <option value="recurring">重复打卡</option>
-            <option value="normal">普通任务</option>
-          </select>
-        </div>
-        {type === "recurring" && (
-          <div className="form-row">
-            <label>间隔（天）</label>
-            <input
-              type="number"
-              min={1}
-              value={interval}
-              onChange={(event) => setInterval(Number(event.target.value))}
-            />
-          </div>
-        )}
         <div className="form-row">
           <label>开始日期</label>
           <input
@@ -119,17 +90,6 @@ export const TasksPage = () => {
                       onChange={(event) => setEditTitle(event.target.value)}
                     />
                   </div>
-                  {task.type === "recurring" && (
-                    <div className="form-row">
-                      <label>间隔（天）</label>
-                      <input
-                        type="number"
-                        min={1}
-                        value={editInterval}
-                        onChange={(event) => setEditInterval(Number(event.target.value))}
-                      />
-                    </div>
-                  )}
                   <div className="form-row">
                     <label>开始日期</label>
                     <input
@@ -148,11 +108,7 @@ export const TasksPage = () => {
               ) : (
                 <>
                   <div className="card-title">{task.title}</div>
-                  <div className="card-meta">
-                    {task.type === "recurring"
-                      ? `每 ${task.recurrence?.interval ?? 1} 天一次`
-                      : "普通任务"}
-                  </div>
+                  <div className="card-meta">普通任务</div>
                   <div className="card-meta">开始日期：{task.startDate}</div>
                   <div className="card-meta">
                     状态：{task.status === "active" ? "启用" : "暂停"}

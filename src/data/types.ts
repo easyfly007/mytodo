@@ -1,12 +1,5 @@
-export type TaskType = "normal" | "recurring";
+export type TaskType = "normal";
 export type TaskStatus = "active" | "paused" | "archived";
-
-export type RecurrenceRule = "every_n_days";
-
-export type Recurrence = {
-  rule: RecurrenceRule;
-  interval: number;
-};
 
 export type Task = {
   id: string;
@@ -16,7 +9,6 @@ export type Task = {
   startDate: string;
   endDate: string | null;
   timezone: string;
-  recurrence: Recurrence | null;
   createdAt: string;
   updatedAt: string;
 };

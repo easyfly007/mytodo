@@ -18,7 +18,7 @@ import {
   saveSettings,
   saveTasks,
 } from "../storage/localDb";
-import { addDays, daysBetween, nowIso, todayKey } from "../utils/date";
+import { addDays, nowIso, todayKey } from "../utils/date";
 import {
   isSyncConfigured,
   pullFromGithub,
@@ -39,8 +39,6 @@ type AppState = {
 
 type TaskInput = {
   title: string;
-  type: Task["type"];
-  interval: number;
   startDate: string;
 };
 
@@ -93,13 +91,10 @@ const createCheckin = (
 };
 
 const isDueOnDate = (task: Task, dateKey: string): boolean => {
-  if (task.type !== "recurring" || !task.recurrence) return false;
   if (task.status !== "active") return false;
-  if (dateKey < task.startDate) return false;
+  if (dateKey !== task.startDate) return false;
   if (task.endDate && dateKey > task.endDate) return false;
-
-  const diff = daysBetween(task.startDate, dateKey);
-  return diff >= 0 && diff % task.recurrence.interval === 0;
+  return true;
 };
 
 const ensureScheduledCheckins = (
@@ -361,6 +356,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       window.clearTimeout(syncTimerRef.current);
     }
     syncTimerRef.current = window.setTimeout(async () => {
+      syncInFlightRef.current = true;
       try {
         setState((prev) => ({ ...prev, syncStatus: "syncing", syncError: null }));
         await pushToGithub(state.settings, {
@@ -373,6 +369,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         const message =
           error instanceof Error ? error.message : "同步失败，请稍后重试。";
         setState((prev) => ({ ...prev, syncStatus: "error", syncError: message }));
+      } finally {
+        syncInFlightRef.current = false;
       }
     }, 1500);
   }, [state.tasks, state.checkins, state.meta, state.settings, state.loading]);
@@ -382,15 +380,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     const task: Task = {
       id: crypto.randomUUID(),
       title: input.title.trim(),
-      type: input.type,
+      type: "normal",
       status: "active",
       startDate: input.startDate,
       endDate: null,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      recurrence:
-        input.type === "recurring"
-          ? { rule: "every_n_days", interval: input.interval }
-          : null,
       createdAt: now,
       updatedAt: now,
     };
@@ -537,6 +531,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         checkins: applyMissedCheckins(merged.checkins),
       };
 
+      skipNextPushRef.current = true;
       skipNextPushRef.current = true;
       setState((prev) => ({
         ...prev,
